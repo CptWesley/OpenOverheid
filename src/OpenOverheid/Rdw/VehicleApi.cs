@@ -62,8 +62,29 @@ namespace OpenOverheid.Rdw
         /// </summary>
         /// <returns>Get all examination expiration dates of registered vehicles.</returns>
         public Dictionary<string, DateTime> GetExaminationExpirations()
+            => GetExaminationExpirations(int.MaxValue, 0);
+
+        /// <summary>
+        /// Gets the examination expirations synchronously.
+        /// </summary>
+        /// <param name="limit">The number of entries requested.</param>
+        /// <param name="offset">The offset of entries where to start for pagination.</param>
+        /// <returns>Get all examination expiration dates of registered vehicles.</returns>
+        public Dictionary<string, DateTime> GetExaminationExpirations(int limit, int offset)
         {
-            JsonDocument response = Request(ExaminationExpirationUrl);
+            JsonDocument response = Request($"{ExaminationExpirationUrl}?$limit={limit}&$offset={offset}");
+            return GetExaminationExpirations(response);
+        }
+
+        /// <summary>
+        /// Gets the examination expirations asynchronously.
+        /// </summary>
+        /// <param name="limit">The number of entries requested.</param>
+        /// <param name="offset">The offset of entries where to start for pagination.</param>
+        /// <returns>Get all examination expiration dates of registered vehicles.</returns>
+        public async Task<Dictionary<string, DateTime>> GetExaminationExpirationsAsync(int limit, int offset)
+        {
+            JsonDocument response = await RequestAsync($"{ExaminationExpirationUrl}?$limit={limit}&$offset={offset}");
             return GetExaminationExpirations(response);
         }
 
@@ -71,11 +92,8 @@ namespace OpenOverheid.Rdw
         /// Gets the examination expirations asynchronously.
         /// </summary>
         /// <returns>Get all examination expiration dates of registered vehicles.</returns>
-        public async Task<Dictionary<string, DateTime>> GetExaminationExpirationsAsync()
-        {
-            JsonDocument response = await RequestAsync(ExaminationExpirationUrl);
-            return GetExaminationExpirations(response);
-        }
+        public Task<Dictionary<string, DateTime>> GetExaminationExpirationsAsync()
+            => GetExaminationExpirationsAsync(int.MaxValue, 0);
 
         private static string NormalizeLicensePlate(string licensePlate)
         {
@@ -94,10 +112,8 @@ namespace OpenOverheid.Rdw
             return normalized;
         }
 
-        private static DateTime ExtractDate(JsonElement element)
+        private static DateTime ParseDate(string dateString)
         {
-            string dateString = element.GetProperty("vervaldatum_keuring").GetString();
-
             int year = int.Parse(dateString.Substring(0, 4), CultureInfo.InvariantCulture);
             int month = int.Parse(dateString.Substring(4, 2), CultureInfo.InvariantCulture);
             int day = int.Parse(dateString.Substring(6, 2), CultureInfo.InvariantCulture);
@@ -106,16 +122,20 @@ namespace OpenOverheid.Rdw
         }
 
         private static DateTime GetExaminationExpiration(JsonDocument document)
-            => ExtractDate(document.RootElement.EnumerateArray().First());
+        {
+            string dateString = document.RootElement.EnumerateArray().First().GetProperty("vervaldatum_keuring").GetString();
+            return ParseDate(dateString);
+        }
 
         private static Dictionary<string, DateTime> GetExaminationExpirations(JsonDocument document)
         {
             Dictionary<string, DateTime> result = new Dictionary<string, DateTime>();
             foreach (JsonElement entry in document.RootElement.EnumerateArray())
             {
-                string licensePlate = entry.GetProperty("kenteken").GetString();
-                DateTime date = ExtractDate(entry);
-                result.Add(licensePlate, date);
+                if (entry.TryGetProperty("kenteken", out JsonElement licensePlate) && entry.TryGetProperty("vervaldatum_keuring", out JsonElement date))
+                {
+                    result.Add(licensePlate.GetString(), ParseDate(date.GetString()));
+                }
             }
 
             return result;
