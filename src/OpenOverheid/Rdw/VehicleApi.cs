@@ -94,10 +94,9 @@ namespace OpenOverheid.Rdw
             return normalized;
         }
 
-        private static DateTime GetExaminationExpiration(JsonDocument document)
+        private static DateTime ExtractDate(JsonElement element)
         {
-            JsonElement entry = document.RootElement.EnumerateArray().First();
-            string dateString = entry.GetProperty("vervaldatum_keuring").GetString();
+            string dateString = element.GetProperty("vervaldatum_keuring").GetString();
 
             int year = int.Parse(dateString.Substring(0, 4), CultureInfo.InvariantCulture);
             int month = int.Parse(dateString.Substring(4, 2), CultureInfo.InvariantCulture);
@@ -106,19 +105,16 @@ namespace OpenOverheid.Rdw
             return new DateTime(year, month, day);
         }
 
+        private static DateTime GetExaminationExpiration(JsonDocument document)
+            => ExtractDate(document.RootElement.EnumerateArray().First());
+
         private static Dictionary<string, DateTime> GetExaminationExpirations(JsonDocument document)
         {
             Dictionary<string, DateTime> result = new Dictionary<string, DateTime>();
             foreach (JsonElement entry in document.RootElement.EnumerateArray())
             {
                 string licensePlate = entry.GetProperty("kenteken").GetString();
-                string dateString = entry.GetProperty("vervaldatum_keuring").GetString();
-
-                int year = int.Parse(dateString.Substring(0, 4), CultureInfo.InvariantCulture);
-                int month = int.Parse(dateString.Substring(4, 2), CultureInfo.InvariantCulture);
-                int day = int.Parse(dateString.Substring(6, 2), CultureInfo.InvariantCulture);
-
-                DateTime date = new DateTime(year, month, day);
+                DateTime date = ExtractDate(entry);
                 result.Add(licensePlate, date);
             }
 
